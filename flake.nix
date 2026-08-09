@@ -13,12 +13,12 @@
         inherit (pkgs) makeWrapper;
 
         pname = "helium-browser";
-        version = "0.15.2.1";
+        version = "0.15.3.1";
         extraFlags = "--password-store=basic";
 
         src = pkgs.fetchurl {
           url = "https://github.com/imputnet/helium-linux/releases/download/${version}/helium-${version}-x86_64.AppImage";
-          sha256 = "sha256-Sn3MWsvqZw5YUYVKrEkJLW1gFQ1Sr+whEsCiFxYNvgg=";
+          sha256 = "sha256-ZCCm/prkgYgbDHW6OBPWvoIE77g7IYQpYdqc/PnIrSU=";
         };
 
         extracted = pkgs.appimageTools.extract {
