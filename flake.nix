@@ -7,24 +7,26 @@
   };
 
   outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+    flake-utils.lib.eachSystem [
+      "x86_64-linux"
+      "aarch64-linux"
+      "aarch64-darwin"
+    ] (system:
       let
         pkgs = import nixpkgs { inherit system; };
         inherit (pkgs) lib;
 
         pname = "helium-browser";
-        version = "0.15.3.1";
+
+        release = import ./helium-release.nix;
+        version = release.version;
 
         linuxHelium =
         let
           linuxArch = if pkgs.stdenv.hostPlatform.isAarch64 then "arm64" else "x86_64";
-          linuxHashes = {
-            x86_64 = "sha256-IEYWTZ48ioufDCdzXgGy/TZw3dHh45mqZuPW0j3DoYY=";
-            arm64 = "sha256-/7S176593jli0rSExhATwNx3ZcVkrwuQlZ0dU7tMPjU=";
-          };
           linuxSrc = pkgs.fetchurl {
             url = "https://github.com/imputnet/helium-linux/releases/download/${version}/helium-${version}-${linuxArch}_linux.tar.xz";
-            sha256 = linuxHashes.${linuxArch};
+            sha256 = if linuxArch == "x86_64" then release.linux_x86_64_hash else release.linux_aarch64_hash;
           };
           deps = with pkgs; [
             stdenv.cc.cc
@@ -139,7 +141,7 @@
         let
           darwinSrc = pkgs.fetchurl {
             url = "https://github.com/imputnet/helium-macos/releases/download/${version}/helium_${version}_arm64-macos.dmg";
-            sha256 = "sha256-JOBiYoQmtcZLZLAWroTVn0Eff5EntD2UgJKRP/E4aZ8=";
+            sha256 = release.darwin_aarch64_hash;
           };
         in
         pkgs.stdenv.mkDerivation {
