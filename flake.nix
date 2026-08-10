@@ -193,9 +193,31 @@
      {
        packages.default = helium;
        packages.${pname} = helium;
-       apps.default = {
-         type = "app";
-         program = "${helium}/bin/${pname}";
-       };
+
+       lib.withOverrides = {
+         extraArgs ? [],
+         extraEnv ? {},
+       }:
+         pkgs.symlinkJoin {
+           name = pname;
+
+           paths = [ helium ];
+
+           nativeBuildInputs = [ pkgs.makeWrapper ];
+
+           postBuild = ''
+             wrapProgram "$out/bin/${pname}" \
+               ${lib.concatStringsSep " " (
+                 map (arg: "--add-flags ${lib.escapeShellArg arg}") extraArgs
+               )} \
+               ${lib.concatStringsSep " " (
+                 lib.mapAttrsToList
+                   (name: value:
+                     "--set ${lib.escapeShellArg name} ${lib.escapeShellArg value}"
+                   )
+                   extraEnv
+               )}
+           '';
+         };
      });
 }
