@@ -1,8 +1,8 @@
 {
-  description = "Helium AppImage wrapper flake";
+  description = "Helium browser flake";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -10,78 +10,192 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
-        inherit (pkgs) makeWrapper;
+        inherit (pkgs) lib;
 
         pname = "helium-browser";
         version = "0.15.3.1";
-        extraFlags = "--password-store=basic";
 
-        src = pkgs.fetchurl {
-          url = "https://github.com/imputnet/helium-linux/releases/download/${version}/helium-${version}-x86_64.AppImage";
-          sha256 = "sha256-ZCCm/prkgYgbDHW6OBPWvoIE77g7IYQpYdqc/PnIrSU=";
-        };
-
-        extracted = pkgs.appimageTools.extract {
-          inherit pname version src;
-        };
-
-        desktopItem = pkgs.makeDesktopItem {
-          name = pname;
-          desktopName = "Helium";
-          comment = "Web browser";
-          exec = "${pname} ${extraFlags} %U";
-          terminal = false;
-          categories = [ "Network" "WebBrowser" ];
-          icon = pname;
-          startupWMClass = "helium-browser";
-        };
-
-        radeonEnvScript = ''
-          for vendor_file in /sys/class/drm/card*/device/vendor; do
-            if [ -f "$vendor_file" ] && [ "$(cat "$vendor_file" 2>/dev/null)" = "0x1002" ]; then
-              export LIBVA_DRIVER_NAME=radeonsi
-              export LIBVA_DRIVERS_PATH=/run/opengl-driver/lib/dri
-              export VK_ICD_FILENAMES=/run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json
-              break
-            fi
-          done
-        '';
-
-        helium = pkgs.appimageTools.wrapType2 {
-          inherit pname version src;
-
-          extraPkgs = pkgs: with pkgs; [
-            libva
-            mesa
-            libGL
-            vulkan-loader
-          ];
-
-          extraEnv = {
-            NIXOS_OZONE_WL = "1";
+        linuxHelium =
+        let
+          linuxArch = if pkgs.stdenv.hostPlatform.isAarch64 then "arm64" else "x86_64";
+          linuxHashes = {
+            x86_64 = "sha256-IEYWTZ48ioufDCdzXgGy/TZw3dHh45mqZuPW0j3DoYY=";
+            arm64 = "sha256-/7S176593jli0rSExhATwNx3ZcVkrwuQlZ0dU7tMPjU=";
           };
+          linuxSrc = pkgs.fetchurl {
+            url = "https://github.com/imputnet/helium-linux/releases/download/${version}/helium-${version}-${linuxArch}_linux.tar.xz";
+            sha256 = linuxHashes.${linuxArch};
+          };
+          deps = with pkgs; [
+            stdenv.cc.cc
+            nss
+            nspr
+            libGL
+            libgbm
+            libdrm
+            libxkbcommon
+            libX11
+            libXcomposite
+            libXdamage
+            libXext
+            libXfixes
+            libXrandr
+            libXrender
+            libxcb
+            libxshmfence
+            libXi
+            libXcursor
+            libXft
+            libXScrnSaver
+            libXtst
+            libSM
+            libICE
+            libXt
+            alsa-lib
+            dbus
+            cups
+            ffmpeg
+            libva
+            pipewire
+            wayland
+            vulkan-loader
+            systemd
+            pango
+            cairo
+            gdk-pixbuf
+            atk
+            at-spi2-atk
+            at-spi2-core
+            freetype
+            fontconfig
+            libuuid
+            expat
+            zlib
+            libxml2
+            gtk3
+            glib
+            libkrb5
+            snappy
+            udev
+            qt5.qtbase
+            qt6.qtbase
+            qt6.qtwayland
+          ];
+          libPath = lib.makeLibraryPath deps
+            + ":${lib.makeSearchPathOutput "lib" "lib64" deps}"
+            + ":$out/opt/${pname}";
+        in
+        pkgs.stdenv.mkDerivation {
+          inherit pname version;
+          src = linuxSrc;
 
-          extraInstallCommands = ''
-            source "${makeWrapper}/nix-support/setup-hook"
+          dontConfigure = true;
+          dontBuild = true;
+          dontPatchELF = true;
+          dontStrip = true;
 
-            install -Dm444 ${desktopItem}/share/applications/${pname}.desktop \
-              -t "$out/share/applications"
+          nativeBuildInputs = [ pkgs.makeWrapper pkgs.patchelf ];
 
-            install -Dm444 ${extracted}/.DirIcon \
-              $out/share/pixmaps/${pname}.png
+          installPhase = ''
+            runHook preInstall
 
-            wrapProgram $out/bin/${pname} \
-              --add-flags "${extraFlags}" \
-              --run ${pkgs.lib.escapeShellArg radeonEnvScript}
+            mkdir -p "$out/opt/${pname}"
+            cp -r . "$out/opt/${pname}/"
+
+            for bin in helium helium_crashpad_handler chromedriver; do
+              if [ -f "$out/opt/${pname}/$bin" ]; then
+                patchelf \
+                  --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" \
+                  --set-rpath "${libPath}" \
+                  "$out/opt/${pname}/$bin"
+              fi
+            done
+
+            mkdir -p "$out/bin"
+            makeWrapper "$out/opt/${pname}/helium" "$out/bin/${pname}" \
+              --prefix LD_LIBRARY_PATH : "${libPath}"
+
+            install -Dm444 helium.desktop "$out/share/applications/${pname}.desktop"
+            sed -i \
+              -e "s|^Exec=.*|Exec=$out/bin/${pname} %U|" \
+              -e "s|^Icon=.*|Icon=${pname}|" \
+              "$out/share/applications/${pname}.desktop"
+
+            install -Dm444 product_logo_256.png "$out/share/pixmaps/${pname}.png"
+
+            runHook postInstall
           '';
-        };
-      in {
-        packages.default = helium;
-        packages.${pname} = helium;
 
-        apps.default = {
-          type = "app";
-          program = "${helium}/bin/${pname}";
+          meta = with lib;{
+            description = "Private, fast, and honest web browser";
+            homepage = "helium.computer";
+            license = licenses.gpl3Only;
+            platforms = platforms.linux;
+            mainProgram = pname;
+          };
         };
-      });
+
+        darwinHelium =
+        let
+          darwinSrc = pkgs.fetchurl {
+            url = "https://github.com/imputnet/helium-macos/releases/download/${version}/helium_${version}_arm64-macos.dmg";
+            sha256 = "sha256-JOBiYoQmtcZLZLAWroTVn0Eff5EntD2UgJKRP/E4aZ8=";
+          };
+        in
+        pkgs.stdenv.mkDerivation {
+          inherit pname version;
+          src = darwinSrc;
+
+          nativeBuildInputs = [ pkgs._7zz ];
+
+          unpackPhase = ''
+            runHook preUnpack
+            7zz x "$src" || true
+            runHook postUnpack
+          '';
+          sourceRoot = ".";
+
+          installPhase = ''
+            runHook preInstall
+
+            app=$(find . -maxdepth 1 -name "*.app" -print -quit)
+            if [ -z "$app" ]; then
+              echo "error: no .app bundle found in the dmg" >&2
+              exit 1
+            fi
+
+            mkdir -p "$out/Applications"
+            cp -R "$app" "$out/Applications/Helium.app"
+
+            codesign --force --deep --sign - "$out/Applications/Helium.app" || true
+
+            mkdir -p "$out/bin"
+            cat > "$out/bin/${pname}" <<EOF
+            #!/bin/sh
+            exec /usr/bin/open -na "$out/Applications/Helium.app" --args "\$@"
+            EOF
+            chmod +x "$out/bin/${pname}"
+
+            runHook postInstall
+          '';
+
+          meta = with lib;{
+            description = "Private, fast, and honest web browser";
+            homepage = "helium.computer";
+            license = licenses.gpl3Only;
+            platforms = platforms.darwin;
+            mainProgram = pname;
+          };
+        };
+
+        helium = if pkgs.stdenv.isDarwin then darwinHelium else linuxHelium;
+      in
+     {
+       packages.default = helium;
+       packages.${pname} = helium;
+       apps.default = {
+         type = "app";
+         program = "${helium}/bin/${pname}";
+       };
+     });
 }
