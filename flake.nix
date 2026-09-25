@@ -98,6 +98,11 @@
 
           nativeBuildInputs = [ pkgs.makeWrapper pkgs.patchelf ];
 
+          postBuild = ''
+            wrapProgram $out/bin/helium \
+            --add-flags "--enable-features=AcceleratedVideoEncoder"
+          '';
+
           installPhase = ''
             runHook preInstall
 
