@@ -116,6 +116,7 @@
             mkdir -p "$out/bin"
             makeWrapper "$out/opt/${pname}/helium" "$out/bin/${pname}" \
               --prefix LD_LIBRARY_PATH : "${libPath}"
+              --add-flags "--enable-features=AcceleratedVideoEncoder"
 
             install -Dm444 helium.desktop "$out/share/applications/${pname}.desktop"
             sed -i \
