@@ -195,7 +195,7 @@
           };
         };
 
-        helium = if pkgs.stdenv.isDarwin then darwinHelium else linuxHelium;
+        helium = if pkgs.stdenv.hostPlatform.isDarwin then darwinHelium else linuxHelium;
       in
      {
        packages.default = helium;
