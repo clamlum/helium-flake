@@ -1,7 +1,7 @@
 {
-  version = "0.18.3.1";
+  version = "0.19.2.1";
 
-  linux_x86_64_hash = "sha256-ib2WLKXlFZkWpMS++lqaCPVA0tjNeU8vlV6NXUpGO/I=";
-  linux_aarch64_hash = "sha256-S3t0TlXEAnL7NLFIrq1+NrjY0I0EQTH0Vy9PqV0U7JI=";
-  darwin_aarch64_hash = "sha256-Sdyl7kdt+FKNiMfREcgi8OtKHA5IdQLqzUhkd+p3qgU=";
+  linux_x86_64_hash = "sha256-cHzzGeOj0qoGHKFddUh3vRi4sokghzjIKfywhzvH7Ns=";
+  linux_aarch64_hash = "sha256-bLAgW4tP2Oukf+o4svzTvXPlFbxWBqviqvdYalej5os=";
+  darwin_aarch64_hash = "sha256-wH2rnBVxz2jPhWs1xtC/IcLPU/d8QyRRYwGOeICU6/E=";
 }
